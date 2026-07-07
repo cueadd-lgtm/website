@@ -1,0 +1,216 @@
+// Prisma schema for PennyScan v2
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StoreChain {
+  DOLLAR_GENERAL
+  DOLLAR_TREE
+  HOME_DEPOT
+  LOWES
+  WALMART
+  TARGET
+}
+
+enum DealType {
+  PENNY
+  DEEP_CLEARANCE
+  CLEARANCE
+}
+
+enum ConfirmationStatus {
+  FOUND
+  NOT_FOUND
+  OUT_OF_STOCK
+}
+
+// Stores
+model Store {
+  id                String    @id @default(cuid())
+  chain             StoreChain
+  chainStoreId      String    // e.g., "DG_12345"
+  name              String
+  address           String
+  city              String
+  state             String
+  zip               String
+  latitude          Float
+  longitude         Float
+  phone             String?
+  hours             Json?     // {"mon": "9am-10pm", ...}
+  website           String?
+  dataSource        String    // "api", "scraper", "community"
+  lastVerified      DateTime?
+  lastScraped       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  deals             Deal[]
+  
+  @@unique([chain, chainStoreId])
+  @@index([latitude, longitude])
+  @@index([city, state])
+}
+
+// Deals
+model Deal {
+  id                String    @id @default(cuid())
+  storeId           String
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  name              String
+  description       String?
+  sku               String?
+  upc               String?
+  
+  price             Float     // Usually $0.01
+  originalPrice     Float?
+  discountPercent   Float     @default(0)
+  dealType          DealType  @default(PENNY)
+  
+  category          String
+  imageUrl          String?
+  aisleLocation     String?   // e.g., "G12"
+  sectionName       String?   // e.g., "Clearance endcap"
+  notes             String?
+  
+  confidenceScore   Float     @default(0.5) // 0.0-1.0
+  inStockLikelihood Float     @default(0.7) // 0.0-1.0
+  quantityReported  Int?
+  sourceType        String    // "api", "scraper", "penny_list", "community"
+  
+  lastSeen          DateTime  @default(now())
+  expiresAt         DateTime? // Auto-expire old deals
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  confirmations     Confirmation[]
+  
+  @@index([storeId])
+  @@index([confidenceScore])
+  @@index([lastSeen])
+  @@index([expiresAt])
+  @@index([dealType])
+}
+
+// User confirmations (community layer)
+model Confirmation {
+  id                String    @id @default(cuid())
+  dealId            String
+  deal              Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  
+  userId            String?
+  user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  status            ConfirmationStatus
+  notes             String?
+  photoUrl          String?
+  quantity          Int?      // How many units still available
+  
+  latitude          Float?    // Location where confirmed
+  longitude         Float?
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([dealId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Users (optional - for trust scoring)
+model User {
+  id                String    @id @default(cuid())
+  email             String?   @unique
+  username          String?   @unique
+  passwordHash      String?
+  
+  trustScore        Float     @default(0.5) // 0.0-1.0
+  submissionCount   Int       @default(0)
+  accurateReports   Int       @default(0)
+  falseReports      Int       @default(0)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  confirmations     Confirmation[]
+  submissions       Submission[]
+  
+  @@index([trustScore])
+}
+
+// User submissions (crowdsourced deals before verification)
+model Submission {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  storeName         String
+  storeChain        StoreChain
+  storeId           String?
+  
+  itemName          String
+  price             Float
+  originalPrice     Float?
+  aisleLocation     String?
+  photoUrl          String?
+  notes             String?
+  quantity          Int?
+  
+  latitude          Float?    // User's location
+  longitude         Float?
+  
+  status            String    @default("pending") // pending, approved, rejected, duplicate
+  createdDeal       Deal?     // Link to deal if approved
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([status])
+  @@index([storeChain])
+  @@index([createdAt])
+}
+
+// Search events (analytics)
+model SearchEvent {
+  id                String    @id @default(cuid())
+  userId            String?
+  
+  latitude          Float
+  longitude         Float
+  radiusMiles       Float
+  
+  filters           Json?     // {"chains": [...], "minConfidence": 0.5, ...}
+  resultsCount      Int
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([createdAt])
+}
+
+// Job execution log
+model JobLog {
+  id                String    @id @default(cuid())
+  jobName           String    // "scrape_deals", "decay_scores", etc.
+  chain             String?   // Store chain if applicable
+  
+  status            String    // "running", "completed", "failed"
+  itemsProcessed    Int?
+  error             String?
+  
+  startedAt         DateTime
+  completedAt       DateTime?
+  durationMs        Int?
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([jobName])
+  @@index([createdAt])
+}
