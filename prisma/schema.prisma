@@ -1,0 +1,130 @@
+// Prisma schema for PennyScan
+// This schema defines all entities needed to track stores, items, deals, and scan jobs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Store chain enum
+enum StoreChain {
+  WALMART
+  TARGET
+  HOME_DEPOT
+  BEST_BUY
+  LOWES
+  CVS
+  WALGREENS
+  DOLLAR_GENERAL
+}
+
+// Deal type enum
+enum DealType {
+  PENNY
+  DEEP_CLEARANCE
+  CLEARANCE
+}
+
+// Store locations
+model Store {
+  id                String    @id @default(cuid())
+  chain             StoreChain
+  storeId           String    // Retailer's internal store ID
+  name              String
+  address           String
+  city              String
+  state             String
+  zip               String
+  latitude          Float
+  longitude         Float
+  phoneNumber       String?
+  distance          Float?    @default(0) // Distance from user's location in miles
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  items             StoreItem[]
+  scanJobs          ScanJob[]
+
+  @@unique([chain, storeId])
+  @@index([zip])
+  @@index([latitude, longitude])
+}
+
+// Product catalog
+model Item {
+  id                String    @id @default(cuid())
+  sku               String?
+  upc               String?
+  name              String
+  description       String?
+  category          String
+  originalPrice     Float?
+  imageUrl          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  storeItems        StoreItem[]
+
+  @@unique([sku])
+  @@unique([upc])
+  @@index([category])
+}
+
+// Store-specific item pricing and location
+model StoreItem {
+  id                String    @id @default(cuid())
+  storeId           String
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  currentPrice      Float
+  originalPrice     Float?
+  discountPercent   Float     @default(0)
+  dealType          DealType
+  aisleNumber       String?   // e.g., "G12"
+  section           String?   // e.g., "Clearance endcap"
+  notes             String?   // e.g., "Back wall clearance section, final price"
+  lastUpdated       DateTime  @default(now())
+  scanJobId         String?
+  scanJob           ScanJob?  @relation(fields: [scanJobId], references: [id], onDelete: SetNull)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([storeId, itemId])
+  @@index([dealType])
+  @@index([lastUpdated])
+}
+
+// Background scan jobs
+model ScanJob {
+  id                String    @id @default(cuid())
+  storeId           String
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  chain             StoreChain
+  status            String    @default("pending") // pending, running, completed, failed
+  itemsFound        Int       @default(0)
+  error             String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  items             StoreItem[]
+
+  @@index([status])
+  @@index([chain])
+  @@index([createdAt])
+}
+
+// User (optional, for future authentication)
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  password          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([email])
+}
