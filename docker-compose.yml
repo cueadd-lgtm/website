@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_DB: pennyscan
+      POSTGRES_USER: pennyscan
+      POSTGRES_PASSWORD: dev_password_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pennyscan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache & Job Queue
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://pennyscan:dev_password_123@postgres:5432/pennyscan
+      REDIS_URL: redis://redis:6379
+      PORT: 3001
+      API_SECRET: dev-secret-key-123
+      MAPBOX_TOKEN: ${MAPBOX_TOKEN:-pk.test}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+    command: npm run dev
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${MAPBOX_TOKEN:-pk.test}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: pennyscan-network
