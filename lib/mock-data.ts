@@ -1,0 +1,77 @@
+// Mock API response for testing without database
+// This file demonstrates the expected data structure
+
+export const mockSearchResponse = {
+  location: {
+    latitude: 39.7817,
+    longitude: -89.6501,
+    zipCode: '62701',
+    city: 'Springfield',
+    state: 'IL',
+  },
+  stores: [
+    {
+      id: 'walmart_001',
+      name: 'Walmart Supercenter',
+      chain: 'WALMART',
+      address: '123 Main St',
+      city: 'Springfield',
+      state: 'IL',
+      zip: '62701',
+      distance: 0.5,
+      lastUpdated: new Date().toISOString(),
+      items: [
+        {
+          id: 'walmart_001-1',
+          itemName: 'Smart LED Light Bulb',
+          category: 'Electronics',
+          originalPrice: 49.99,
+          currentPrice: 0.01,
+          discountPercent: 99,
+          dealType: 'PENNY',
+          aisleNumber: 'G12',
+          section: 'Electronics clearance endcap',
+          notes: 'Final clearance - penny price',
+        },
+        {
+          id: 'walmart_001-2',
+          itemName: 'Bedding Set - Queen',
+          category: 'Home',
+          originalPrice: 89.99,
+          currentPrice: 19.99,
+          discountPercent: 78,
+          dealType: 'DEEP_CLEARANCE',
+          aisleNumber: 'C5',
+          section: 'Clearance aisle near home goods',
+          notes: 'Final markdown 78% off',
+        },
+      ],
+    },
+    {
+      id: 'target_001',
+      name: 'Target',
+      chain: 'TARGET',
+      address: '456 Oak Ave',
+      city: 'Springfield',
+      state: 'IL',
+      zip: '62702',
+      distance: 2.3,
+      lastUpdated: new Date().toISOString(),
+      items: [
+        {
+          id: 'target_001-1',
+          itemName: 'Kids Bicycle',
+          category: 'Sports',
+          originalPrice: 79.99,
+          currentPrice: 0.01,
+          discountPercent: 99,
+          dealType: 'PENNY',
+          aisleNumber: 'A15',
+          section: 'Sporting goods clearance',
+          notes: 'Penny deal - final price',
+        },
+      ],
+    },
+  ],
+  totalStores: 2,
+};
